@@ -1,32 +1,18 @@
 #
-# Copyright 2014 Liferay, Inc. All rights reserved.
-# http://www.liferay.com
+# this is your module manifest and used by Titanium
+# during compilation, packaging, distribution, etc.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-
-version: 1.4
-apiversion: 3
-architectures: armeabi-v7a x86
+version: 2.0.5
+apiversion: 4
+architectures: arm64-v8a armeabi-v7a x86
 description: Enables Titanium apps supporting android to interact with iBeacons
 author: James Falkner
 license: Apache Software License 2.0
 copyright: Copyright 2014 Liferay, Inc. All Rights Reserved.
-
 
 # these should not be edited
 name: liferay.beacons
 moduleid: com.liferay.beacons
 guid: 57bcb713-b5cd-4bb1-95d5-9141b6074802
 platform: android
-minsdk: 6.1.2.GA
+minsdk: 7.4.1

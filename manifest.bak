@@ -15,14 +15,18 @@
 # limitations under the License.
 #
 
-# Path to the Titanium Mobile SDK to use for building
-titanium.platform=/Users/RBAtkins0n/Library/Application Support/Titanium/mobilesdk/osx/6.0.1.GA/android
+version: 1.4
+apiversion: 3
+architectures: armeabi-v7a x86
+description: Enables Titanium apps supporting android to interact with iBeacons
+author: James Falkner
+license: Apache Software License 2.0
+copyright: Copyright 2014 Liferay, Inc. All Rights Reserved.
 
-# Path to lowest android SDK platform directory you wish to support
-android.platform=/Users/RBAtkins0n/Library/android-sdk-macosx/platforms/android-23
 
-# Path to the android NDK
-android.ndk=/Users/RBAtkins0n/Library/android-ndk-r12b
-
-# Path to the google APIs (optional, I think)
-google.apis=/Users/RBAtkins0n/Library/android-sdk-macosx/add-ons/addon-google_apis-google-23
+# these should not be edited
+name: liferay.beacons
+moduleid: com.liferay.beacons
+guid: 57bcb713-b5cd-4bb1-95d5-9141b6074802
+platform: android
+minsdk: 6.1.2.GA
