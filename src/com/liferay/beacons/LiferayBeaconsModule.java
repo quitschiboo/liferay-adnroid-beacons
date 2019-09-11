@@ -78,7 +78,9 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 	@Kroll.onAppCreate
 	public static void onAppCreate(TiApplication app)
 	{
-		Log.i(TAG, "onAppCreate: Liferay Android Beacons 0.4");
+		Log.i(TAG, "onAppCreate: Liferay Android Beacons 0.5");
+
+
 
 		//beaconManager = BeaconManager.getInstanceForApplication(app);
 
@@ -96,12 +98,14 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 		//LogM.setLogger(Loggers.verboseLogger());
 
 		BackgroundPowerSaver = new BackgroundPowerSaver(app);
+
 	}
 
 	/**
 	 */
 	@Kroll.method
 	public void setDebug(boolean flag) {
+		beaconManager.setDebug(flag);
 		/*
 		if(flag){
 			LogManager.setLogger(Loggers.infoLogger());
@@ -137,7 +141,10 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 		//beaconManager = BeaconManager.getInstanceForApplication(activity);
 		//beaconManager = BeaconManager.getInstanceForApplication(TiApplication.getInstance());
 		Log.i(TAG, "instantiateManager in activity: "+activity);
-		beaconManager = BeaconManager.getInstanceForApplication(getApplicationContext());
+		beaconManager = BeaconManager.getInstanceForApplication(TiApplication.getAppCurrentActivity());
+		beaconManager.bind(this);
+		beaconManager.setDebug(false);
+
 	}
 
 	/**
@@ -178,6 +185,8 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 	{
 		KrollDict retVal = new KrollDict();
 		if(closestBeacon != null) {
+			Log.i(TAG, "getClosestBeacon");
+			Log.i(TAG, Double.toString(closestBeacon.getRunningAverageRssi()));
 			retVal.put("uuid", closestBeacon.getId1().toString());
 			retVal.put("major", closestBeacon.getId2().toInt());
 			retVal.put("minor", closestBeacon.getId3().toInt());
@@ -186,6 +195,7 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 			retVal.put("power", closestBeacon.getTxPower());
 			return retVal;
 		} else {
+			Log.i(TAG, "getClosestBeacon: Beacon IS NULL");
 			return null;
 		}
 
@@ -335,28 +345,25 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 	 * @param region the region to range, expected to be a property dictionary from javascript code.
 	 */
 	@Kroll.method
-	public void startNormalRangingForBeacons(Object region) {
-		Log.i(TAG, "start Normal Ranging");
+	public void setNormalRanging() {
+		Log.i(TAG, "SET Normal Ranging");
 		beaconManager.removeAllRangeNotifiers();
 		beaconManager.addRangeNotifier(normalRangeNotifier);
-		startRangingForRegion(region);
 	}
 
 	@Kroll.method
-	public void startSingleRangingForBeacons(Object region, double trig) {
-		Log.i(TAG, "start Single Ranging");
+	public void setSingleRanging(double trig) {
+		Log.i(TAG, "SET Single Ranging with Trigger: "+Double.toString(trig));
 		triggerRssi = trig;
 		beaconManager.removeAllRangeNotifiers();
 		beaconManager.addRangeNotifier(singleRangeNotifier);
-		startRangingForRegion(region);
 	}
 
 	@Kroll.method
-	public void startManualRangingForBeacons(Object region) {
-		Log.i(TAG, "start Manual Ranging");
+	public void setManualRanging() {
+		Log.i(TAG, "SET Manual Ranging");
 		beaconManager.removeAllRangeNotifiers();
 		beaconManager.addRangeNotifier(manualRangeNotifier);
-		startRangingForRegion(region);
 	}
 
 	/**
@@ -496,7 +503,6 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 	public void onBeaconServiceConnect() {
 
 		Log.i(TAG, "onBeaconServiceConnect");
-		beaconManager.setDebug(true);
 		beaconManager.setAndroidLScanningDisabled(true);
 		setRssiFilterClass("runningAverage", 5000l);
 		this.ready = true; //so we know the module is ready to setup event listeners
@@ -565,7 +571,7 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 			}
 		});*/
 
-		beaconManager.addRangeNotifier(normalRangeNotifier);
+		//beaconManager.addRangeNotifier(normalRangeNotifier);
 		beaconManager.getBeaconParsers().add(new BeaconParser()
            .setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24"));
 	}
@@ -632,8 +638,18 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 			Beacon clB = null;
 
 			for (Beacon beacon : Beacons) {
-				if(clB == null || clB.getRunningAverageRssi() < beacon.getRunningAverageRssi()){
+				if(clB == null){
 					clB = beacon;
+				} else {
+					//if(beacon.getRunningAverageRssi() && clB.getRunningAverageRssi()) {
+						 if(clB.getRunningAverageRssi() < beacon.getRunningAverageRssi()) {
+							 clB = beacon;
+						 }
+					/*} else {
+						if(clB.getRssi() < beacon.getRssi()) {
+							clB = beacon;
+						}
+					}*/
 				}
 			}
 			if(clB != null){
