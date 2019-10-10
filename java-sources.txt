@@ -1,5 +1,4 @@
 "/Users/markus/Documents/GitHub/quitschiboo-liferay-android-beacons/src/com/liferay/beacons/BeaconEvent.java"
-"/Users/markus/Documents/GitHub/quitschiboo-liferay-android-beacons/src/com/liferay/beacons/DisappearanceMonitor.java"
 "/Users/markus/Documents/GitHub/quitschiboo-liferay-android-beacons/src/com/liferay/beacons/LiferayBeaconsModule.java"
 "/Users/markus/Documents/GitHub/quitschiboo-liferay-android-beacons/build/generated/java/com/liferay/beacons/LiferayBeaconsBootstrap.java"
 "/Users/markus/Documents/GitHub/quitschiboo-liferay-android-beacons/build/generated/r/android/support/compat/R.java"

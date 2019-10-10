@@ -43,7 +43,6 @@ import org.appcelerator.titanium.util.TiConvert;
 import java.util.Iterator;
 
 import java.util.concurrent.TimeUnit;
-import java.util.Timer;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.Collection;
@@ -74,7 +73,7 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 
 	//Der naechste gerangte Beacon;
 	//private Beacon closestBeacon = null;
-	private Double nearest_beacon_distance;
+
 	private int nearest_beacon_rssi;
 	private KrollDict nearest_beacon_now;
 
@@ -86,8 +85,6 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 	private long singleScanStartTime;
 
 	private Hashtable<String, BeaconEvent> visible_beacons;
-	private Timer expiry_timer;
-	private DisappearanceMonitor disMon;
 
 	public Hashtable getVisibleBeacons(){
 		return visible_beacons;
@@ -98,40 +95,13 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 		Log.i(TAG, "[MODULE LIFECYCLE EVENT] constructor");
 		visible_beacons = new Hashtable<String, BeaconEvent>();
 		rangable_regions = new Hashtable<String, Region>();
-
-		disMon = new DisappearanceMonitor(this);
-
-	}
-
-	@Kroll.method
-	public void setExpiryTime(long ms) {
-		disMon.setExpiryTime(ms);
 	}
 
 	@Kroll.onAppCreate
 	public static void onAppCreate(TiApplication app)
 	{
 		Log.i(TAG, "onAppCreate: Liferay Android Beacons 0.5");
-
-
-
-		//beaconManager = BeaconManager.getInstanceForApplication(app);
-
-		// set some less battery-intensive settings compared to the defaults
-		/*
-		beaconManager.setForegroundScanPeriod(1200);
-		beaconManager.setForegroundBetweenScanPeriod(1200);
-		beaconManager.setBackgroundScanPeriod(10000);
-		beaconManager.setBackgroundBetweenScanPeriod(60 * 1000);
-*/
-
-		// to see debugging from the Radius networks lib, set this to true
-		//LogM = new LogManager();
-
-		//LogM.setLogger(Loggers.verboseLogger());
-
 		//BackgroundPowerSaver = new BackgroundPowerSaver(app);
-
 	}
 
 	/**
@@ -139,12 +109,6 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 	@Kroll.method
 	public void setDebug(boolean flag) {
 		beaconManager.setDebug(flag);
-		/*
-		if(flag){
-			LogManager.setLogger(Loggers.infoLogger());
-		} else {
-			LogManager.setLogger(Loggers.empty());
-		}*/
 	}
 
 	/**
@@ -168,11 +132,6 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 	 */
 	@Kroll.method
 	public void instantiateManager() {
-		//TiApplication appContext = TiApplication.getInstance();
-    //Activity activity = appContext.getAppCurrentActivity();
-
-		//beaconManager = BeaconManager.getInstanceForApplication(activity);
-		//beaconManager = BeaconManager.getInstanceForApplication(TiApplication.getInstance());
 		Log.i(TAG, "instantiateManager in activity: "+activity);
 		beaconManager = BeaconManager.getInstanceForApplication(TiApplication.getAppCurrentActivity());
 		beaconManager.setForegroundScanPeriod(1200);
@@ -182,7 +141,6 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 		beaconManager.setMaxTrackingAge(8400);
 		beaconManager.bind(this);
 		beaconManager.setDebug(false);
-
 	}
 
 	/**
@@ -240,7 +198,6 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 			Identifier major = (dict.get("major") != null) ? Identifier.fromInt(TiConvert.toInt(dict, "major")) : null;
 			Identifier minor = (dict.get("minor") != null) ? Identifier.fromInt(TiConvert.toInt(dict, "minor")) : null;
 
-
 			Region r = new Region(identifier, uuid, major, minor);
 			rangable_regions.put(identifier, r);
 	}
@@ -258,13 +215,9 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 		maxSingleScanLength = maxScanLength;
 		singleScanStartTime = System.currentTimeMillis();
 		triggerRssi = tRssi;
-		if(expiry_timer!= null) {
-			expiry_timer.cancel();
-			expiry_timer = null;
-		}
+
 		visible_beacons.clear();
 
-		nearest_beacon_distance = 0.0;
 		nearest_beacon_rssi = 0;
 		nearest_beacon_now = null;
 
@@ -409,8 +362,6 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 		} catch(RemoteException re) {
 			re.printStackTrace();
 		}
-
-
 	}
 
 	/**
@@ -469,18 +420,6 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 		//triggerRssi = trig;
 		beaconManager.removeAllRangeNotifiers();
 		beaconManager.addRangeNotifier(singleRangeNotifier);
-	}
-
-	@Kroll.method
-	public void setManualRanging() {
-		Log.i(TAG, "SET Manual Ranging");
-		if(expiry_timer != null) {
-			expiry_timer = new Timer();
-			expiry_timer.schedule(disMon, 1000, 1000);
-		}
-
-		beaconManager.removeAllRangeNotifiers();
-		beaconManager.addRangeNotifier(manualRangeNotifier);
 	}
 
 	/**
@@ -542,12 +481,7 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 	@Kroll.method
 	public void stopRangingForAllBeacons()
 	{
-
 		Log.i(TAG, "stopRangingForAllBeacons");
-		if(expiry_timer != null) {
-			expiry_timer.cancel();
-			expiry_timer = null;
-		}
 
 		for (Region r : beaconManager.getRangedRegions()) {
 			try {
@@ -707,21 +641,15 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 			for (Beacon beacon : Beacons) {
 				KrollDict beaconDict = new KrollDict();
 				beaconDict.put("identifier", region.getUniqueId());
-				//beaconDict.put("uuid", beacon.getProximityUuid());
-				//beaconDict.put("major", beacon.getMajor());
-				//beaconDict.put("minor", beacon.getMinor());
 				beaconDict.put("uuid", beacon.getId1().toString());
 				beaconDict.put("major", beacon.getId2().toInt());
 				beaconDict.put("minor", beacon.getId3().toInt());
-				//beaconDict.put("proximity", getProximityName(beacon.getProximity()));
 				beaconDict.put("distance", (float) beacon.getDistance());
-				//beaconDict.put("accuracy", beacon.getAccuracy());
 				beaconDict.put("averagerssi", beacon.getRunningAverageRssi());
 				beaconDict.put("rssi", beacon.getRssi());
 				beaconDict.put("power", beacon.getTxPower());
 				finalBeacons.add(beaconDict);
 
-				//fireEvent("beaconProximity", beaconDict);
 			}
 
 			KrollDict e = new KrollDict();
@@ -749,21 +677,14 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 				} else {
 					getVisibleBeacons().put(key, beacon_event);
 				}
-
 			}
-			Log.i(TAG, "visible_beacons size: "+getVisibleBeacons().size());
 			int i = 0;
 			for (Iterator<BeaconEvent> beacon_events = getVisibleBeacons().values().iterator(); beacon_events.hasNext();) {
 				BeaconEvent cB = beacon_events.next();
 				if(i == 0) {
-					Log.i(TAG, "Checking first Visible Beacon: "+i);
-					nearest_beacon_distance = cB.getDistance();
 					nearest_beacon_rssi = cB.getRssi();
 					nearest_beacon_now = cB.getBeaconData();
-				//} else if (cB.getDistance() < nearest_beacon_distance) {
 				} else if (cB.getRssi() > nearest_beacon_rssi) {
-					Log.i(TAG, "Checking Visible Beacon: "+i);
-					nearest_beacon_distance = cB.getDistance();
 					nearest_beacon_rssi = cB.getRssi();
 					nearest_beacon_now = cB.getBeaconData();
 				}
@@ -771,16 +692,16 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 			}
 			if(System.currentTimeMillis() - singleScanStartTime > maxSingleScanLength) {
 				//Wenn die maximale Scanzeit erreicht ist
-				nearest_beacon_now.put("trigger", triggerRssi);
-				nearest_beacon_now.put("location", "end");
+				//nearest_beacon_now.put("trigger", triggerRssi);
+				//nearest_beacon_now.put("location", "end");
 				fireEvent("singleBeacon", nearest_beacon_now);
 				stopRangingForAllBeacons();
 				//Stop scanning
 
 			} else if(System.currentTimeMillis() - singleScanStartTime > minSingleScanLength) {
 				if(nearest_beacon_now != null && (int) nearest_beacon_now.get("rssi") > triggerRssi) {
-					nearest_beacon_now.put("trigger", triggerRssi);
-					nearest_beacon_now.put("location", "between");
+					//nearest_beacon_now.put("trigger", triggerRssi);
+					//nearest_beacon_now.put("location", "between");
 					fireEvent("singleBeacon", nearest_beacon_now);
 					stopRangingForAllBeacons();
 				} else {
@@ -794,62 +715,6 @@ public class LiferayBeaconsModule extends KrollModule implements BeaconConsumer
 				scProg.put("seconds", String.valueOf(TimeUnit.MILLISECONDS.toSeconds(maxSingleScanLength - (System.currentTimeMillis() - singleScanStartTime))));
 				fireEvent("scanProgress", scProg);
 			}
-		}
-	};
-
-	//This Range saves the closest Beacon to the Variable closestBEacon
-	RangeNotifier manualRangeNotifier = new RangeNotifier() {
-		public void didRangeBeaconsInRegion(Collection<Beacon> Beacons, Region region) {
-			for(Beacon beacon : Beacons) {
-				String key = beacon.getId1()+"-"+beacon.getId2()+"-"+beacon.getId3();
-				Log.i(TAG, "save to visible_beacons: "+key);
-				BeaconEvent beacon_event = new BeaconEvent(beacon);
-				getVisibleBeacons().put(key, beacon_event);
-			}
-			Log.i(TAG, "visible_beacons size: "+getVisibleBeacons().size());
-			int i = 0;
-			for (Iterator<BeaconEvent> beacon_events = getVisibleBeacons().values().iterator(); beacon_events.hasNext();) {
-				BeaconEvent cB = beacon_events.next();
-				if(i == 0) {
-					Log.i(TAG, "Checking first Visible Beacon: "+i);
-					nearest_beacon_distance = cB.getDistance();
-					nearest_beacon_rssi = cB.getRssi();
-					nearest_beacon_now = cB.getBeaconData();
-				//} else if (cB.getDistance() < nearest_beacon_distance) {
-				} else if (cB.getRssi() > nearest_beacon_rssi) {
-					Log.i(TAG, "Checking Visible Beacon: "+i);
-					nearest_beacon_distance = cB.getDistance();
-					nearest_beacon_rssi = cB.getRssi();
-					nearest_beacon_now = cB.getBeaconData();
-				}
-				i++;
-			}
-
-			/*
-			Beacon clB = null;
-			Log.i(TAG, "[manualRange notifier] Size of Col: "+Beacons.size());
-			for (Beacon beacon : Beacons) {
-				if(clB == null){
-					Log.i(TAG, "[manualRange notifier] clB was Null "+beacon.getId2()+" - "+beacon.getId3()+" > RSSI: "+beacon.getRunningAverageRssi());
-					clB = beacon;
-				} else {
-					//if(beacon.getRunningAverageRssi() && clB.getRunningAverageRssi()) {
-						 //if(clB.getRunningAverageRssi() < beacon.getRunningAverageRssi()) {
-						 if(clB.getRunningAverageRssi() < beacon.getRunningAverageRssi()) {
-							 Log.i(TAG, "[manualRange notifier] new bigger Rssi "+beacon.getId2()+" - "+beacon.getId3()+" > RSSI: "+beacon.getRunningAverageRssi());
-							 clB = beacon;
-						 } else {
-							 Log.i(TAG, "[manualRange notifier] smaller Rssi "+beacon.getId2()+" - "+beacon.getId3()+" > RSSI: "+beacon.getRunningAverageRssi());
-						 }
-
-				}
-			}
-			if(clB != null){
-				Log.i(TAG, "[manualRange notifier] closestBeacon set To: "+clB.getId2()+" - "+clB.getId3()+" > RSSI: "+clB.getRunningAverageRssi());
-				closestBeacon = clB;
-			} else {
-				Log.i(TAG, "[manualRange notifier] clB remains null");
-			}*/
 		}
 	};
 
