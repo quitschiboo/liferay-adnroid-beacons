@@ -1,0 +1,398 @@
+<h1>liferay.beacons Module</h1>
+
+<h2>Description</h2>
+
+<p>A Titanium module to interact with iBeacons in Titanium projects that support Android.</p>
+
+<h2>Accessing the liferay.beacons Module</h2>
+
+<p>Place the ZIP file into your project&#39;s root directory, and declare the module and required android permissions in your <code>tiapp.xml</code> file (or in your custom <code>platform/android/AndroidManifest.xml</code> file if you are using that):</p>
+
+<p><code>
+&lt;ti:app&gt;
+  ...
+  &lt;android xmlns:android=&quot;http://schemas.android.com/apk/res/android&quot;&gt;
+    &lt;manifest package=&quot;[YOUR_APP_PACKAGE_NAME]&quot;&gt;
+      &lt;uses-sdk	android:minSdkVersion=&quot;21&quot;
+            android:targetSdkVersion=&quot;26&quot;/&gt;
+      &lt;uses-permission
+        android:name=&quot;android.permission.BLUETOOTH&quot;/&gt;
+      &lt;uses-permission
+        android:name=&quot;android.permission.BLUETOOTH_ADMIN&quot;/&gt;
+      &lt;uses-permission
+        android:name=&quot;android.permission.ACCESS_FINE_LOCATION&quot;/&gt;
+      &lt;application&gt;
+        &lt;service	android:enabled=&quot;true&quot;
+              android:exported=&quot;true&quot;
+              android:isolatedProcess=&quot;false&quot;
+              android:label=&quot;iBeacon&quot;
+              android:name=&quot;com.radiusnetworks.ibeacon.service.IBeaconService&quot;&gt;
+        &lt;/service&gt;
+        &lt;service	android:enabled=&quot;true&quot;
+              android:name=&quot;com.radiusnetworks.ibeacon.IBeaconIntentProcessor&quot;&gt;
+              &lt;meta-data android:name=&quot;background&quot; android:value=&quot;true&quot; /&gt;
+          &lt;intent-filter
+            android:priority=&quot;1&quot; &gt;
+            &lt;action android:name=&quot;[YOUR_APP_PACKAGE_NAME].DID_RANGING&quot;/&gt;
+            &lt;action android:name=&quot;[YOUR_APP_PACKAGE_NAME].DID_MONITORING&quot;/&gt;
+          &lt;/intent-filter&gt;
+        &lt;/service&gt;
+      &lt;/application&gt;
+    &lt;/manifest&gt;
+  &lt;/android&gt;
+  ...
+  &lt;modules&gt;
+    &lt;module platform=&quot;android&quot;&gt;com.liferay.beacons&lt;/module&gt;
+  &lt;/modules&gt;
+  ...
+&lt;/ti:app&gt;
+</code></p>
+
+<p>Don&#39;t forget to replace the <code>[YOUR_APP_PACKAGE_NAME]</code> with your app&#39;s package name, e.g. <em>com.companyname.app</em>, and you can read <a href="http://altbeacon.github.io/android-beacon-library/configure.html">Radius Networks&#39; docs</a> on this topic as well.</p>
+
+<p>Next, to access this module from JavaScript, you would do the following:</p>
+
+<p><code>
+var TiBeacons = null;
+if (Ti.Platform.name === &quot;android&quot;) {
+  TiBeacons = require(&quot;com.liferay.beacons&quot;);
+} else {
+  console.log(&quot;liferay.beacons not supported on &quot; + Ti.Platform.name);
+}
+</code></p>
+
+<p>As of Android 6.0, your app will need to request permission after launch in the form of a popup. This will need to be accepted by the user or else the service will fail. You can request permisison using an approach simialr to the below.</p>
+
+<p><code>
+var permissions = [&#39;android.permission.ACCESS_FINE_LOCATION&#39;];
+Ti.Android.requestPermissions(permissions, function(e) {
+  if (e.success) {
+    Ti.API.info(&quot;SUCCESS&quot;);
+  } else {
+    Ti.API.info(&quot;ERROR: &quot; + e.error);
+  }
+});
+</code></p>
+
+<p>Note that this library is only available for the Android platform. Attempting to use it on other platforms
+will fail in different ways and <em>people will point and laugh at you</em>.</p>
+
+<h2>Using the iBeacons API</h2>
+
+<p>This module enables Titanium projects to start/stop monitoring for beacon region events (enter/exit/determineState),
+as well as ranging events (proximity). You can configure the beacon scan periods (to adjust battery usage),
+and can enable or disable auto-ranging (when auto-ranging is enabled, then ranging will be turned on when a
+region is entered, and turned off when the region is exited).</p>
+
+<p>Note there are <em>two</em> ranging events that are produced from this module: <code>beaconProximity</code> and <code>beaconRanges</code>. In most cases
+you will only attach listeners for one of these, because they tell you almost the same information. Read below to find out more.</p>
+
+<h3>Setting up and starting to monitor and/or range</h3>
+
+<p>A typical workflow for beacons, and the corresponding JavaScript APIs for this module:</p>
+
+<ol><li>Get a reference to the module via</li></ol>
+
+<p><code>
+var TiBeacons = require(&#39;com.liferay.beacons&#39;);
+</code></p>
+
+<p><strong>Note</strong> that when Titanium evaluates the <code>require()</code> statement, it will immediately return from it while the module sets up the native BLE binding asynchronously. This means, for example, that you should not attempt to call <code>startMonitoringForRegion()</code> or <code>startRangingForRegion()</code> immediately after the call to <code>require()</code>. Instead, call them in a UI callback (e.g. when a button is clicked as part of an event handler, or when a specific window is opened). If you attempt to begin ranging or monitoring immediately after <code>require()</code>ing the module, you&#39;ll likely get an error such as</p>
+
+<p><code>
+android.os.RemoteException: The IBeaconManager is not bound to the service. Call iBeaconManager.bind(IBeaconConsumer consumer) and wait for a callback to onIBeaconServiceConnect()
+</code></p>
+
+<p>Instead of guessing when the service is ready, we can check using the following method:</p>
+
+<p><code></code>`
+var handle;
+handle = setInterval(function(){
+    if(!TiBeacons.isReady())
+        return;</p>
+
+<pre><code>Ti.API.info(&quot;Okay! Module is ready!&quot;);  
+clearInterval(handle);
+handle = null;
+
+//setup your event listeners here</code></pre>
+
+<p>}, 1000);
+<code></code>`</p>
+
+<ol><li><p>See if it&#39;s supported on the device via <code>TiBeacons.checkAvailability()</code> - If it is not, you should not attempt to call any other APIs, and somehow indicate that it&#39;s not supported in your app to the end user. The module </p></li><li><p>Decide whether you want auto-ranging, and turn it on via <code>TiBeacons.setAutoRange(true)</code> if you want it, or <code>TiBeacons.setAutoRange(false)</code> if not. The default is <code>true</code> (that is, auto-ranging is enabled).</p></li><li><p>Attach listeners for region and range events</p></li></ol>
+
+<p><code></code>`
+TiBeacons.addEventListener(&quot;enteredRegion&quot;, handleRegionEnter);
+TiBeacons.addEventListener(&quot;exitedRegion&quot;, handleRegionExit);
+TiBeacons.addEventListener(&quot;determinedRegionState&quot;, handleRegionDeterminedState);</p>
+
+<p>/<em> You probably only want one of these </em>/
+TiBeacons.addEventListener(&quot;beaconProximity&quot;, handleProximityEvent);
+TiBeacons.addEventListener(&quot;beaconRanges&quot;, handleRanges);
+<code></code>`</p>
+
+<p>You can also remove event listeners using the <code>TiBeacons.removeEventListener()</code>, for example:</p>
+
+<p><code>
+TiBeacons.removeEventListener(&quot;enteredRegion&quot;, handleRegionEnter);
+</code></p>
+
+<ol><li>Begin monitoring one or more regions</li></ol>
+
+<p><code></code>`
+TiBeacons.startMonitoringForRegion({
+  identifier: &#39;Region by UUID only&#39;,
+  uuid: &#39;11111111-2222-3333-4444-555555555555&#39;
+});</p>
+
+<p>TiBeacons.startMonitoringForRegion({
+  identifier: &#39;Region by UUID and major&#39;,
+  uuid: &#39;11111111-2222-3333-4444-555555555555&#39;,
+  major: 2112
+});</p>
+
+<p>TiBeacons.startMonitoringForRegion({
+  identifier: &#39;Region by UUID and major and minor&#39;,
+  uuid: &#39;11111111-2222-3333-4444-555555555555&#39;,
+  major: 2112,
+  minor: 73
+});</p>
+
+<p><code></code>`</p>
+
+<p>Once this is called, when the device enters or exits a region, the corresponding listener&#39;s callback will be called.</p>
+
+<p>If autoranging is enabled, then the moment a region is entered, ranging (which is more expensive in terms of power) begins, and listener callbacks will be called for those as well.</p>
+
+<p>If autoranging is NOT enabled, you must manually begin ranging (if you are interested in proximity/range events) like this:</p>
+
+<p><code>
+TiBeacons.startRangingForBeacons({
+  identifier: &#39;Region by UUID only&#39;,
+  uuid: &#39;11111111-2222-3333-4444-555555555555&#39;
+});
+</code></p>
+
+<h3>Stopping monitoring/ranging</h3>
+
+<p>To turn everything off:</p>
+
+<p><code>
+TiBeacons.stopRangingForAllBeacons();
+TiBeacons.stopMonitoringAllRegions();
+</code></p>
+
+<h3>Objects passed to the callbacks</h3>
+
+<p>When one of your registered listeners&#39; callbacks is called, they will receive different kinds of objects. Here are examples that print out all of the values received by each of your callbacks:</p>
+
+<h4>enteredRegion</h4>
+
+<p><code>
+function enteredRegionCallback(e) {
+  console.log(&quot;identifer: &quot; + e.identifier);
+}
+</code></p>
+
+<h4>exitedRegion</h4>
+
+<p><code>
+function exitedRegionCallback(e) {
+  console.log(&quot;identifer: &quot; + e.identifier);
+}
+</code></p>
+
+<h4>determinedRegionState</h4>
+
+<p>State can be either <code>inside</code> or <code>outside</code>. If the state is determined to be <em>unknown</em> then the callback will not be called.</p>
+
+<p><code></code>`
+function determinedRegionStateCallback(e) {
+  console.log(&quot;identifer: &quot; + e.identifier);</p>
+
+<p>  // it&#39;s either &#39;inside&#39; or &#39;outside&#39;
+  console.log(&quot;regionState: &quot; + e.regionState);
+}
+<code></code>`</p>
+
+<h4>beaconProximity</h4>
+
+<p><code>
+function beaconProximityCallback(e) {
+  console.log(&quot;identifer: &quot; + e.identifier);
+  console.log(&quot;uuid: &quot; + e.uuid);
+  console.log(&quot;major: &quot; + e.major);
+  console.log(&quot;minor: &quot; + e.minor);
+  console.log(&quot;proximity: &quot; + e.proximity);
+  console.log(&quot;accuracy: &quot; + e.accuracy);
+  console.log(&quot;rssi: &quot; + e.rssi);
+  console.log(&quot;power: &quot; + e.power);
+}
+</code></p>
+
+<p>Note that the proximity could be one of <code>immediate</code>, <code>near</code>, <code>far</code>, or <code>unknown</code>. See the <a href="http://altbeacon.github.io/android-beacon-library/distance-calculations.html">Radius Networks&#39; docs</a> for more detail about accuracy, rssi, and power values given in the callback object.</p>
+
+<h4>beaconRanges</h4>
+
+<p>This event payload contains the same data as the <code>beaconProximity</code> payload, except this event is only fired once
+per hardware scan cycle, and the event contains an <em>array</em> of beacons in its payload, so that you can know how many beacons were scanned
+during the scan period.</p>
+
+<p>For example, if during a scan period, 7 beacons were ranged, then the <code>beaconProximity</code> event will be fired 7 times in a row, once for each ranged beacon,
+and then the <code>beaconRanges</code> event will be fired <em>once</em>, with an array of the 7 beacons as part of its payload.</p>
+
+<p>You normally only need to listen for <code>beaconProximity</code> <em>or</em> <code>beaconRanges</code>. You can listen for both if you like!</p>
+
+<p>Also note that the order of the beacons in the array of the <code>beaconRanges</code> event is not guaranteed to be in any particular order across callbacks.</p>
+
+<p><code></code>`
+function beaconRangingCallback(e) {</p>
+
+<p>  console.log(&quot;I am in the &quot; + e.identifier + &quot; region&quot;);
+  console.log(&quot;I see &quot; + e.beacons.length + &quot; beacons in this region:&quot;);
+  console.log(&quot;----------------&quot;);</p>
+
+<p>  e.beacons.forEach(function(beacon, index) {
+      console.log(&quot;Beacon number: &quot; + index);
+      console.log(&quot;uuid: &quot; + beacon.uuid);
+      console.log(&quot;major: &quot; + beacon.major);
+      console.log(&quot;minor: &quot; + beacon.minor);
+      console.log(&quot;proximity: &quot; + beacon.proximity);
+      console.log(&quot;accuracy: &quot; + beacon.accuracy);
+      console.log(&quot;rssi: &quot; + beacon.rssi);
+      console.log(&quot;power: &quot; + beacon.power);
+      console.log(&quot;----------------&quot;);
+    }
+}
+<code></code>`</p>
+
+<h3>Foreground vs. Background</h3>
+
+<p>It is is a good idea for apps to reduce their power consumption when placed in the background by
+a user of an android device (e.g. when they press the Home button to send an app to the background, but
+do not hard-close the app).</p>
+
+<p>To that end, this module can be configured with different scan periods for foreground vs. background modes,
+however <strong>this module DOES NOT DETECT when your app is sent to the background or brought back to the foreground</strong>.
+You must manually detect foreground/background events and call the appropriate APIs on this module to tell it
+that it is now in the background and should use the background scan periods. Check out <a href="https://github.com/benbahrenburg/benCoding.Android.Tools">Ben Bahrenburg&#39;s excellent
+Android Tools</a> for a super-easy way to auto-detect this. Here&#39;s an example:
+<code>
+var androidPlatformTools = require(&#39;bencoding.android.tools&#39;).createPlatform();
+var isForeground = androidPlatformTools.isInForeground();
+console.log(&quot;Am I currently in the foreground? &quot; + isForeground);
+</code>
+You can call this repeatedly (e.g. every 5 seconds) using <code>setInterval()</code> and when foreground vs. background is detected, call <code>TiBeacons.setBackgroundMode()</code>. At least that&#39;s what I do.</p>
+
+<p>To configure the scan periods for foreground and background:
+<code>
+var TiBeacons = require(&#39;com.liferay.beacons&#39;);
+TiBeacons.setScanPeriods({
+  foregroundScanPeriod: 1000,
+  foregroundBetweenScanPeriod: 2000,
+  backgroundScanPeriod: 5000,
+  backgroundBetweenScanPeriod: 60000
+});
+</code>
+This says that when the module is in &quot;foreground mode&quot; (set via <code>TiBeacons.setBackgroundMode(false);</code> when foreground
+is detected), then the device will scan for iBeacons for 1000ms, then wait 2000ms, then repeat. When in background mode (set via
+<code>TiBeacons.setBackgroundMode(true);</code> when the app is sent to the background), it will scan for iBeacons for 5000ms,
+followed by a 60000ms wait, and repeat.</p>
+
+<p>Check out <a href="https://github.com/AltBeacon/android-beacon-library/blob/master/src/main/java/org/altbeacon/beacon/service/BeaconService.java">the source code to the underlying Radius Networks module</a> for a longer discussion on the best values to use,
+and the defaults.</p>
+
+<h2>Example <code>app.js</code> for testing</h2>
+
+<p>Here is a simple <code>app.js</code> application that you can use to see if things are working. You may need to modify it a bit to align with your specific beacon UUID.</p>
+
+<p><code></code>`
+// sample Titanium app.js app to test that things are working,
+// this assumes your hardware supports BLE and it&#39;s switched on.
+// you can use checkAvailability() to see if it&#39;s supported, but
+// we don&#39;t do that here just because we&#39;re lazy.</p>
+
+<p>var TiBeacons = require(&#39;com.liferay.beacons&#39;);</p>
+
+<p>// make a window with two buttons to start and stop monitoring
+var win = Titanium.UI.createWindow({
+    title:&#39;iBeacon Test&#39;,
+    backgroundColor:&#39;#fff&#39;
+});</p>
+
+<p>var b1 = Titanium.UI.createButton({
+	title: &quot;Start Monitoring&quot;
+});
+var b2 = Titanium.UI.createButton({
+	title: &quot;Stop Monitoring&quot;
+});</p>
+
+<p>var entered = function(reg) {
+	alert(&quot;entered region: &quot; + reg.identifier);
+};</p>
+
+<p>var exited = function(reg) {
+	alert(&quot;exited region: &quot; + reg.identifier);
+};</p>
+
+<p>b1.addEventListener(&#39;click&#39;, function(e) {</p>
+
+<pre><code>// add the listeners for beacon region monitoring
+TiBeacons.addEventListener(&quot;enteredRegion&quot;, entered);
+TiBeacons.addEventListener(&quot;exitedRegion&quot;, exited);
+
+// start monitoring in the button click callback
+TiBeacons.startMonitoringForRegion({
+  identifier: &#39;FOO&#39;,
+  uuid: &#39;5AFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF&#39;
+});</code></pre>
+
+<p>});</p>
+
+<p>b2.addEventListener(&#39;click&#39;, function(e) {</p>
+
+<pre><code>// stop everything
+TiBeacons.stopMonitoringAllRegions();
+TiBeacons.removeEventListener(&quot;enteredRegion&quot;, entered);
+TiBeacons.removeEventListener(&quot;exitedRegion&quot;, exited);</code></pre>
+
+<p>});</p>
+
+<p>win.setLayout(&#39;vertical&#39;);
+win.add(b1);
+win.add(b2);</p>
+
+<p>win.open();
+<code></code>`</p>
+
+<h2>Author</h2>
+
+<p><img alt="James Falkner Logo" src="https://cdn.lfrs.sl/www.liferay.com/image/user_male_portrait?img_id=6182018&amp;t=1402762276765"/></p>
+
+<ul><li>James Falkner (Liferay Community Manager)</li><li><code>james.falkner@liferay.com</code></li><li><a href="http://twitter.com/schtool"><code>@schtool</code></a></li></ul>
+
+<h2>License</h2>
+
+<p>Copyright (c) 2015, Liferay Inc. All rights reserved.</p>
+
+<p>Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at</p>
+
+<pre><code>http://www.apache.org/licenses/LICENSE-2.0</code></pre>
+
+<p>Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.</p>
+
+<h2>Notice</h2>
+
+<p>This product includes software developed at
+<a href="http://www.radiusnetworks.com/">The Radius Networks</a> (http://www.radiusnetworks.com/).</p>
+
+<p>Android IBeacon Service</p>
+
+<p>Copyright 2013 Radius Networks</p>
